@@ -12,6 +12,7 @@ namespace NetMQ
         private static Ctx s_ctx;
         private static readonly object s_settingsSync;
         private static bool s_manualTakeOver;
+        private static bool s_blockTermination;
 
         static NetMQConfig()
         {
@@ -34,6 +35,7 @@ namespace NetMQ
         {
             try
             {
+                s_ctx.Block = BlockTermination;
                 s_ctx.CheckDisposed();
                 s_ctx.Terminate();
             }
@@ -76,7 +78,7 @@ namespace NetMQ
 
             // Only creates if we don't have a context.
             if (isTerminated)
-                s_ctx = new Ctx { Block = false };
+                s_ctx = new Ctx { Block = BlockTermination };
         }
 
         /// <summary>
@@ -84,14 +86,12 @@ namespace NetMQ
         /// This terminate the context, blocking if called with the default options.
         /// This as no effect if ManualTerminationTakeOver isn't called.
         /// </summary>
-        /// <param name="block">Should the context block the thread while terminating.</param>
-        public static void ContextTerminate(bool block = true)
+        public static void ContextTerminate()
         {
             // Move along, nothing to see here :)
             if (!s_manualTakeOver) return;
 
-            lock (s_settingsSync)
-                s_ctx.Block = block;
+            s_ctx.Block = BlockTermination;
 
             // Gracefully exit if Terminate was already called for the static context.
             try
@@ -107,8 +107,7 @@ namespace NetMQ
         /// <summary>
         /// Create a context, if needed.
         /// </summary>
-        /// <param name="block">Should the context block the thread while terminating.</param>
-        public static void ContextCreate(bool block=false)
+        public static void ContextCreate()
         {
             // Move along, nothing to see here :)
             if (!s_manualTakeOver) return;
@@ -125,7 +124,20 @@ namespace NetMQ
 
             // Only creates if we don't have a context.
             if(isTerminated)
-                s_ctx = new Ctx { Block = block };
+                s_ctx = new Ctx { Block = BlockTermination };
+        }
+
+        /// <summary>
+        /// Sets if the 
+        /// </summary>
+        public static bool BlockTermination
+        {
+            get { return s_blockTermination; }
+            set
+            {
+                lock(s_settingsSync)
+                    s_blockTermination = value;
+            }
         }
 
         internal static Ctx Context => s_ctx;
